@@ -3,8 +3,9 @@ import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
 import { Route, Routes } from 'react-router-dom'
-import LoginPage from "./Pages/LoginPage"
+
 import AdminDashboard from './Pages/AdminDashboard'
+import AdminLogin from './Pages/AdminLogin'
 function App() {
   
 
@@ -19,7 +20,7 @@ function App() {
             <Route path="product/:id" element={<Product />} />
             <Route path="*" element={<NotFound />} />
           </Route> */}
-          <Route path='/' element={<LoginPage/>}/>
+          <Route path='/' element={<AdminLogin/>}/>
           <Route path='/admin' element={<AdminDashboard/>}/>
         </Routes>
       </Suspense>
