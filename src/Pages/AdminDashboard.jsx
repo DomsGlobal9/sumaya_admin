@@ -72,6 +72,14 @@ const moderationData = [
 
 // Sidebar Component
 const Sidebar = ({ activeTab, setActiveTab }) => {
+      const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+    const handleLogoutt = () => {
+    // ✅ clear token on logout
+    localStorage.removeItem("adminToken");
+    setOpen(false);
+    navigate("/", { replace: true }); // redirect to login
+  };
   const menuItems = [
     { id: "marketplace", label: "Marketplace", active: true },
     { id: "analytics", label: "Analytics", active: false },
@@ -98,7 +106,7 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`w-full  px-4 py-3 rounded-lg text-center transition-colors ${
+              className={`w-full  px-4 py-3 rounded-lg cursor-pointer text-center transition-colors ${
                 activeTab === item.id
                   ? "bg-orange-500 text-white"
                   : "text-gray-600 hover:bg-orange-50 hover:text-orange-600"
@@ -112,12 +120,10 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
 
       {/* Logout Button */}
       <div className="absolute bottom-6 left-6 right-6">
-        <Link to="/">
-          <button className="w-full flex items-center justify-center px-4 py-3 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors">
+          <button className="w-full flex items-center cursor-pointer justify-center px-4 py-3 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors" onClick={handleLogoutt}>
             <LogOut className="w-4 h-4 mr-2" />
-            Logout
+             Logout
           </button>
-        </Link>
       </div>
     </div>
   );
@@ -149,28 +155,27 @@ const TopNavbar = () => {
 
         {/* Right Side Actions */}
         <div className="flex items-center space-x-4">
-          <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-full">
+          <button className="p-2 cursor-pointer text-gray-600 hover:bg-gray-100 rounded-full">
             <HelpCircle className="w-5 h-5" />
           </button>
-          <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-full">
+          <button className="p-2 cursor-pointer text-gray-600 hover:bg-gray-100 rounded-full">
             <Bell className="w-5 h-5" />
           </button>
           <div className="relative inline-block">
             <button
               onClick={() => setOpen(!open)}
-              className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center"
+              className="w-8 h-8 bg-gray-300 cursor-pointer rounded-full flex items-center justify-center"
               aria-label="Toggle menu"
             >
               
               <User className="w-5 h-5 text-gray-600" />
-              
             </button>
 
             {open && (
               <div className="absolute right-0 mt-2 w-36 bg-white rounded-md shadow-lg border border-gray-200 z-10">
                 <button
                 onClick={handleLogout}
-                  className="flex items-center w-full px-4 py-2 text-gray-700 hover:bg-gray-100"
+                  className="flex items-center  cursor-pointer w-full px-4 py-2 text-gray-700 hover:bg-gray-100"
                 >
                   <LogOut className="w-4 h-4 mr-2" />
                   Logout
