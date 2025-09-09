@@ -6,7 +6,7 @@ import UserManagement from "../Components/UserManagement";
 import PayoutsContent from "../Components/PayoutsContent";
 import ProductsContent from "../Components/ProductsContent";
 import AddProductContent from "../Components/AddProductContent";
-import {Link} from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom";
 // Dummy data for moderation queue
 const moderationData = [
   {
@@ -125,6 +125,15 @@ const Sidebar = ({ activeTab, setActiveTab }) => {
 
 // Top Navigation Component
 const TopNavbar = () => {
+    const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    // ✅ clear token on logout
+    localStorage.removeItem("adminToken");
+    setOpen(false);
+    navigate("/", { replace: true }); // redirect to login
+  };
   return (
     <div className="fixed top-0 left-64 right-0 bg-white border-b border-gray-200 z-30 h-16">
       <div className="flex items-center justify-between px-6 h-full">
@@ -146,11 +155,28 @@ const TopNavbar = () => {
           <button className="p-2 text-gray-600 hover:bg-gray-100 rounded-full">
             <Bell className="w-5 h-5" />
           </button>
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-              <User className="w-4 h-4 text-gray-600" />
-            </div>
-            <span className="text-gray-700 font-medium">Pallav</span>
+          <div className="relative inline-block">
+            <button
+              onClick={() => setOpen(!open)}
+              className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center"
+              aria-label="Toggle menu"
+            >
+              
+              <User className="w-5 h-5 text-gray-600" />
+              
+            </button>
+
+            {open && (
+              <div className="absolute right-0 mt-2 w-36 bg-white rounded-md shadow-lg border border-gray-200 z-10">
+                <button
+                onClick={handleLogout}
+                  className="flex items-center w-full px-4 py-2 text-gray-700 hover:bg-gray-100"
+                >
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
