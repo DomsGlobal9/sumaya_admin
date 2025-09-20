@@ -1,7 +1,6 @@
-
-
 import React, { useState, useEffect } from 'react';
-import { Plus, Upload, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Plus, Upload, CheckCircle, AlertCircle, ArrowLeft, X } from 'lucide-react';
+import toast, { Toaster } from "react-hot-toast";
 
 export default function AddProductContent({ 
   editingProduct = null, 
@@ -23,9 +22,9 @@ export default function AddProductContent({
   const [existingImages, setExistingImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState(null);
+  const [toasts, setToasts] = useState([]);
   const [isEditMode, setIsEditMode] = useState(false);
 
-  // Load product data for editing
   useEffect(() => {
     if (editingProduct) {
       console.log('Loading product for edit:', editingProduct);
@@ -43,25 +42,24 @@ export default function AddProductContent({
         displayMRP: editingProduct.displayMRP || '',
       });
       
-      // Handle existing images - convert objects to URLs if needed
+      // Handle existing images - extract URLs from objects or strings
       let images = [];
       if (editingProduct.images && Array.isArray(editingProduct.images)) {
         images = editingProduct.images.map(img => {
-          // If img is an object, try to extract URL from common properties
-          if (typeof img === 'object' && img !== null) {
-            console.log('Image object:', img);
-            // Check common properties for image URLs
-            return img.url || img.path || img.src || img.secure_url || img.public_id || img;
+          // If img is an object with url property (your schema structure)
+          if (typeof img === 'object' && img !== null && img.url) {
+            return img.url;
           }
-          // If img is already a string, use it directly
-          return img;
-        }).filter(url => typeof url === 'string' && url.length > 0);
+          // If img is already a string URL (fallback for legacy data)
+          if (typeof img === 'string') {
+            return img;
+          }
+          return null;
+        }).filter(url => url && typeof url === 'string' && url.length > 0);
       }
       
       console.log('Processed images:', images);
       setExistingImages(images);
-      
-      // Reset image files when editing
       setImageFiles([null, null, null, null]);
     } else {
       resetForm();
@@ -117,9 +115,37 @@ export default function AddProductContent({
     }
   };
 
+  // NEW FUNCTION: Handle image deletion
+  const handleImageDelete = (index) => {
+    // Remove the uploaded file
+    const newImageFiles = [...imageFiles];
+    newImageFiles[index] = null;
+    setImageFiles(newImageFiles);
+    
+    // If in edit mode, also remove the existing image from that position
+    if (isEditMode) {
+      const newExistingImages = [...existingImages];
+      newExistingImages[index] = null;
+      setExistingImages(newExistingImages);
+    }
+    
+    showToast('Image removed successfully', 'success');
+  };
+
   const showNotification = (message, type) => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 5000);
+  };
+
+  const showToast = (message, type = 'success') => {
+    const id = Date.now();
+    const newToast = { id, message, type };
+    setToasts(prev => [...prev, newToast]);
+    
+    // Auto remove toast after 4 seconds
+    setTimeout(() => {
+      setToasts(prev => prev.filter(toast => toast.id !== id));
+    }, 4000);
   };
 
   const validateForm = () => {
@@ -154,6 +180,16 @@ export default function AddProductContent({
       }
     }
 
+    // For edit mode, ensure at least one image (existing or new)
+    if (isEditMode) {
+      const hasExisting = existingImages.some(img => img !== null);
+      const hasNew = imageFiles.some(file => file !== null);
+      if (!hasExisting && !hasNew) {
+        showNotification('Please upload at least one product image', 'error');
+        return false;
+      }
+    }
+
     return true;
   };
 
@@ -174,7 +210,22 @@ export default function AddProductContent({
         }
       });
 
-      // Add new images if any
+      // Handle image updates for edit mode (send kept and new positions)
+      if (isEditMode) {
+        const keptPositions = [];
+        const newPositions = [];
+        imageFiles.forEach((file, i) => {
+          if (file) {
+            newPositions.push(i);
+          } else if (existingImages[i]) {
+            keptPositions.push({ position: i, url: existingImages[i] });
+          }
+        });
+        submitData.append('keptPositions', JSON.stringify(keptPositions));
+        submitData.append('newPositions', JSON.stringify(newPositions));
+      }
+
+      // Add new images if any (in the order of their positions)
       imageFiles.forEach((file) => {
         if (file) {
           submitData.append('images', file);
@@ -192,37 +243,41 @@ export default function AddProductContent({
         body: submitData,
       });
 
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const textResponse = await response.text();
-        console.error('Non-JSON response:', textResponse);
-        throw new Error('Server returned non-JSON response');
+      // Enhanced error handling
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server response:', errorText);
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.message || `Server error: ${response.status}`);
+        } catch (parseError) {
+          throw new Error(`Server error: ${response.status} - ${errorText}`);
+        }
       }
 
       const result = await response.json();
-
-      if (response.ok) {
-        const successMessage = isEditMode 
-          ? 'Product updated successfully!' 
-          : 'Product added successfully!';
-        showNotification(successMessage, 'success');
-        
-        // Call callback to notify parent component
-        if (onProductSaved) {
-          onProductSaved();
-        }
-        
-        if (!isEditMode) {
-          resetForm(); // Only reset form for new products
-        }
-        
-        // If we were editing, go back to products list after a delay
-        if (isEditMode && onCancelEdit) {
-          setTimeout(() => onCancelEdit(), 2000);
-        }
-      } else {
-        throw new Error(result.message || `Failed to ${isEditMode ? 'update' : 'add'} product`);
+      
+      const successMessage = isEditMode 
+        ? 'Product updated successfully!' 
+        : 'Product added successfully!';
+      
+      // Show toast notification instead of regular notification
+      toast.success(successMessage);
+      alert(successMessage);
+      
+      if (onProductSaved) {
+        onProductSaved();
       }
+      
+      if (!isEditMode) {
+        resetForm();
+      }
+      
+      if (isEditMode && onCancelEdit) {
+        setTimeout(() => onCancelEdit(), 2000);
+      }
+      
     } catch (error) {
       console.error(`Error ${isEditMode ? 'updating' : 'adding'} product:`, error);
       showNotification(error.message || `Failed to ${isEditMode ? 'update' : 'add'} product`, 'error');
@@ -246,6 +301,46 @@ export default function AddProductContent({
 
   return (
     <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+       <Toaster position="top-right" reverseOrder={false} />
+      {/* Toast Container */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`
+              transform transition-all duration-300 ease-in-out
+              flex items-center space-x-3 px-6 py-4 rounded-lg shadow-lg
+              ${toast.type === 'success' 
+                ? 'bg-green-500 text-white' 
+                : toast.type === 'error'
+                ? 'bg-red-500 text-white'
+                : 'bg-blue-500 text-white'
+              }
+              animate-slide-in-right
+            `}
+            style={{
+              animation: 'slideInRight 0.3s ease-out'
+            }}
+          >
+            {toast.type === 'success' ? (
+              <CheckCircle className="w-5 h-5 flex-shrink-0" />
+            ) : toast.type === 'error' ? (
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            )}
+            <span className="font-medium">{toast.message}</span>
+            <button
+              onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+              className="ml-2 hover:bg-white hover:bg-opacity-20 rounded-full p-1 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Original notification for errors */}
       {notification && (
         <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
           notification.type === 'success' ? 'bg-green-500' : 'bg-red-500'
@@ -276,6 +371,23 @@ export default function AddProductContent({
       </div>
 
       <div className="bg-white rounded-lg p-6 shadow-sm">
+        {/* Add custom CSS for animation */}
+        <style jsx>{`
+          @keyframes slideInRight {
+            from {
+              transform: translateX(100%);
+              opacity: 0;
+            }
+            to {
+              transform: translateX(0);
+              opacity: 1;
+            }
+          }
+          
+          .animate-slide-in-right {
+            animation: slideInRight 0.3s ease-out;
+          }
+        `}</style>
         <div className="mb-8">
           <div className="grid grid-cols-4 gap-4 mb-4">
             {imageFiles.map((file, index) => {
@@ -292,20 +404,7 @@ export default function AddProductContent({
                         className="w-full h-full object-cover rounded"
                       />
                     ) : hasExistingImage ? (
-                      // <img 
-                      //   src={existingImages[index]} 
-                      //   alt={`Existing Product ${index + 1}`}
-                        //  className="w-full h-full object-cover rounded"
-                      //   onError={(e) => {
-                      //     console.error(`Failed to load image at index ${index}:`, existingImages[index]);
-                      //     e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIG5vdCBmb3VuZDwvdGV4dD48L3N2Zz4=';
-                      //   }}
-                      //   onLoad={() => {
-                      //     console.log(`Image loaded successfully at index ${index}:`, existingImages[index]);
-                      //   }}
-                      // />
                       <img src={existingImages[index]} alt={editingProduct.images[index]?.altText || "Product"} className="w-full h-full object-contain rounded" />
-
                     ) : (
                       <Plus className="w-8 h-8 text-gray-500" />
                     )}
@@ -316,24 +415,30 @@ export default function AddProductContent({
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
                   </div>
+                  
+                  {/* DELETE BUTTON - ADD THIS SECTION */}
+                  {(hasNewFile || hasExistingImage) && (
+                    <button
+                      onClick={() => handleImageDelete(index)}
+                      className="absolute top-2 right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-lg transition-colors z-10"
+                      title="Delete image"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                  
                   {(hasNewFile || hasExistingImage) && (
                     <p className="text-xs text-center mt-1 text-gray-500">
                       {hasNewFile ? 'New image' : 'Current image'}
                     </p>
                   )}
-                  {/* Debug info */}
-                  {/* {isEditMode && existingImages[index] && (
-                    <p className="text-xs text-center mt-1 text-blue-500 break-all">
-                      URL: {typeof existingImages[index] === 'string' ? existingImages[index].substring(0, 50) + '...' : 'Invalid URL'}
-                    </p>
-                  )} */}
                 </div>
               );
             })}
           </div>
           <p className="text-center text-sm text-gray-600">
             {isEditMode 
-              ? 'Upload new images to replace existing ones (optional)'
+              ? 'Upload new images to replace existing ones or add to empty slots (up to 4 total)'
               : 'Upload product pics (Min. 1 pic, Max. 4 pics)'
             }
           </p>
