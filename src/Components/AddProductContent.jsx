@@ -252,7 +252,7 @@ export default function AddProductContent({
           const errorJson = JSON.parse(errorText);
           throw new Error(errorJson.message || `Server error: ${response.status}`);
         } catch (parseError) {
-          throw new Error(`Server error: ${response.status} - ${errorText}`);
+          throw new Error(`Server error: ${response.status} - ${errorText},${parseError}`);
         }
       }
 
